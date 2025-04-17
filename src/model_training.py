@@ -30,7 +30,7 @@ class GestureModelTrainer:
         random_seed (int): Random seed for reproducibility
     """
     
-    def __init__(self, model_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\models', processed_data_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\data\processed', random_seed=42):
+    def __init__(self, model_dir=r'C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\models', processed_data_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\data\processed', random_seed=42):
         """
         Initialize the GestureModelTrainer with specified parameters.
         
@@ -540,7 +540,7 @@ class GestureModelTrainer:
 
 if __name__ == "__main__":
     # Example Usage
-    trainer = GestureModelTrainer(model_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\models', processed_data_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\data\processed')
+    trainer = GestureModelTrainer(model_dir=r'C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\data\processed')
     
     try:
         # 1. Load the preprocessed data

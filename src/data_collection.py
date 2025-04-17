@@ -37,7 +37,7 @@ class DataCollector:
     """
     
     def __init__(self, 
-                 output_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\data\raw',
+                 output_dir=r'C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\data\raw',
                  capture_delay=0.1,
                  min_detection_confidence=0.7,
                  min_tracking_confidence=0.5,

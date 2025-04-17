@@ -47,7 +47,7 @@ class RealtimeGestureRecognizer:
     """
     
     def __init__(self, 
-                 model_path=r"C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\models\gesture_model_20250417-004252_best.h5", 
+                 model_path=r"C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\models\gesture_model_20250417-004252_best.h5", 
                  min_detection_confidence=0.7,
                  min_tracking_confidence=0.5,
                  min_pose_detection_confidence=0.5,
@@ -469,7 +469,7 @@ if __name__ == "__main__":
 
     try:
         recognizer = RealtimeGestureRecognizer(
-            model_path=r"C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\models\gesture_model_20250417-004252_best.h5", 
+            model_path=r"C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\models\gesture_model_20250417-004252_best.h5", 
             min_detection_confidence=0.6, # Adjust thresholds as needed
             min_tracking_confidence=0.5,
             min_pose_detection_confidence=0.5,

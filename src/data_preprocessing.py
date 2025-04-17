@@ -31,7 +31,7 @@ class GestureDataProcessor:
         label_encoder (LabelEncoder): Encoder for gesture labels
     """
     
-    def __init__(self, data_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\data\raw', processed_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\data\processed', random_seed=42):
+    def __init__(self, data_dir=r'C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\data\raw', processed_dir=r'C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\data\processed', random_seed=42):
         """
         Initialize the GestureDataProcessor with specified parameters.
         
@@ -481,7 +481,7 @@ class GestureDataProcessor:
 
 if __name__ == "__main__":
     # Example usage
-    processor = GestureDataProcessor(data_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\data\raw', processed_dir=r'C:\Users\piyus\Downloads\Ai_project\Sign_Language_Detection_System-main\data\processed')
+    processor = GestureDataProcessor(data_dir=r'C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\data\raw', processed_dir=r'C:\Users\piyus\Downloads\Ai_project - Copy\Sign_Language_Detection_System-main\data\processed')
     
     try:
         # Prepare dataset (assuming raw data exists)
