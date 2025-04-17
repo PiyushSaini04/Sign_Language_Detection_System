@@ -52,7 +52,7 @@ class RealtimeGestureRecognizer:
                  min_tracking_confidence=0.5,
                  min_pose_detection_confidence=0.5,
                  min_pose_tracking_confidence=0.5,
-                 recognition_threshold=0.7,
+                 recognition_threshold=0.9,
                  smoothing_window=10):
         """
         Initialize the RealtimeGestureRecognizer.
@@ -327,19 +327,62 @@ class RealtimeGestureRecognizer:
         
         print("Starting real-time gesture recognition (Pose + 2 Hands)...")
         print(f"Loaded {len(self.class_names)} gestures: {', '.join(self.class_names)}")
-        print("Press 'q' to quit, 'c' to clear sequence")
+        print("Recognition settings: checks every 2 seconds, minimum accuracy 0.9")
         
         # Initialize webcam
         cap = cv2.VideoCapture(camera_id)
         if not cap.isOpened():
             raise ValueError(f"Could not open camera with ID {camera_id}")
         
-        # Set up display window
-        cv2.namedWindow('Sign Language Recognition', cv2.WINDOW_NORMAL)
-        # cv2.resizeWindow('Sign Language Recognition', 1280, 720) # Adjust size as needed
+        # Get camera frame dimensions
+        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
-        frame_count = 0 # Optional: for performance measurement
-        start_time = time.time() # Optional: for performance measurement
+        # Create a larger window to accommodate webcam, text box, and buttons
+        window_width = frame_width
+        window_height = frame_height + 200  # Extra space for text box and buttons
+        
+        # Create the main window
+        cv2.namedWindow('Sign Language Recognition', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Sign Language Recognition', window_width, window_height)
+        
+        # Variables to store recognition results
+        detected_text = ""
+        
+        # Variables for timed recognition (every 2 seconds)
+        last_recognition_time = 0
+        recognition_interval = 2.0  # Check for gestures every 2 seconds
+        
+        # Function to handle button clicks
+        def handle_mouse_events(event, x, y, flags, param):
+            nonlocal detected_text
+            
+            if event == cv2.EVENT_LBUTTONDOWN:
+                # Clear All button
+                if 50 <= x <= 220 and window_height - 80 <= y <= window_height - 20:
+                    detected_text = ""
+                    self.sequence_buffer = []
+                    self.history_buffer.clear()
+                
+                # Save to Text File button
+                elif 240 <= x <= 440 and window_height - 80 <= y <= window_height - 20:
+                    if detected_text:
+                        timestamp = time.strftime("%Y%m%d-%H%M%S")
+                        file_path = f"sign_language_text_{timestamp}.txt"
+                        with open(file_path, "w") as f:
+                            f.write(detected_text)
+                        print(f"Text saved to {file_path}")
+                
+                # Quit button
+                elif 460 <= x <= 600 and window_height - 80 <= y <= window_height - 20:
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    self.hands.close()
+                    self.pose.close()
+                    exit(0)
+        
+        # Set mouse callback
+        cv2.setMouseCallback('Sign Language Recognition', handle_mouse_events)
         
         # Main loop
         while cap.isOpened():
@@ -360,36 +403,93 @@ class RealtimeGestureRecognizer:
             image_rgb.flags.writeable = True
             image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
             
-            # --- Landmark Preprocessing and Prediction --- 
-            features = self.preprocess_landmarks_live(pose_results, hand_results)
-            prediction_text = "No pose/hands detected"
+            # Create annotated image for display
+            annotated_image = image_bgr.copy()
+            
+            # Create a canvas for the full UI (webcam + text box + buttons)
+            ui_canvas = np.ones((window_height, window_width, 3), dtype=np.uint8) * 240  # Light gray background
+            
+            # Check if hands are in the frame
+            hands_in_frame = hand_results and hand_results.multi_hand_landmarks and len(hand_results.multi_hand_landmarks) > 0
+            
+            # --- Landmark Preprocessing and Prediction ---
+            current_time = time.time()
+            time_since_last_check = current_time - last_recognition_time
+            
+            # Default status messages
+            prediction_text = "No sign detection" if not hands_in_frame else ""
             confidence_text = ""
             
-            if features is not None:
-                # Make prediction using our method instead of trainer's
-                gesture, confidence = self.predict(features)
-                
-                # Add to history buffer
-                self.history_buffer.append((gesture, confidence))
-                
-                # Get smoothed prediction
-                smooth_gesture, smooth_confidence = self.get_smoothed_prediction()
-                
-                if smooth_gesture and smooth_confidence >= self.recognition_threshold:
-                    prediction_text = f"Detected: {smooth_gesture}"
-                    confidence_text = f"Conf: {smooth_confidence:.2f}"
+            # Process hands and detection in real-time
+            if hands_in_frame:
+                # Draw Hand landmarks and orange bounding box
+                for hand_landmarks in hand_results.multi_hand_landmarks:
+                    # Draw hand landmarks
+                    self.mp_drawing.draw_landmarks(
+                        annotated_image,
+                        hand_landmarks,
+                        self.mp_hands.HAND_CONNECTIONS,
+                        self.mp_drawing_styles.get_default_hand_landmarks_style(),
+                        self.mp_drawing_styles.get_default_hand_connections_style()
+                    )
                     
-                    # Update sequence
-                    self.update_sequence(smooth_gesture, smooth_confidence)
-                else:
-                    prediction_text = "Detecting..." # Or "Uncertain"
-                    confidence_text = f"Conf: {smooth_confidence:.2f}"
-            # else: prediction_text remains "No pose/hands detected" or similar 
+                    # Create orange bounding box around the hand
+                    x_min, y_min = frame_width, frame_height
+                    x_max, y_max = 0, 0
+                    
+                    # Find the bounding box coordinates
+                    for landmark in hand_landmarks.landmark:
+                        px = int(landmark.x * frame_width)
+                        py = int(landmark.y * frame_height)
+                        x_min = min(x_min, px)
+                        y_min = min(y_min, py)
+                        x_max = max(x_max, px)
+                        y_max = max(y_max, py)
+                    
+                    # Add padding to the bounding box
+                    padding = 20
+                    x_min = max(0, x_min - padding)
+                    y_min = max(0, y_min - padding)
+                    x_max = min(frame_width, x_max + padding)
+                    y_max = min(frame_height, y_max + padding)
+                    
+                    # Draw orange bounding box
+                    cv2.rectangle(annotated_image, (x_min, y_min), (x_max, y_max), (0, 165, 255), 2)
+                
+                # Process detection in every frame (continuous real-time display)
+                features = self.preprocess_landmarks_live(pose_results, hand_results)
+                
+                if features is not None:
+                    # Make prediction for display on screen
+                    gesture, confidence = self.predict(features)
+                    
+                    # Always show the detected gesture and confidence on screen
+                    prediction_text = f"Detected: {gesture}"
+                    confidence_text = f"Conf: {confidence:.2f}"
+                    
+                    # Add to history buffer for smoothing
+                    self.history_buffer.append((gesture, confidence))
+                    
+                    # Get smoothed prediction
+                    smooth_gesture, smooth_confidence = self.get_smoothed_prediction()
+                    
+                    # Only update the textbox every 2 seconds with high confidence detections
+                    if time_since_last_check >= recognition_interval and smooth_confidence >= self.recognition_threshold:
+                        # Update sequence
+                        self.update_sequence(smooth_gesture, smooth_confidence)
+                        
+                        # Update detected text with new gestures
+                        if len(self.sequence_buffer) == 1:  # If this is a new sequence
+                            if detected_text and not detected_text.endswith("\n"):
+                                detected_text += "\n"
+                            detected_text += smooth_gesture
+                        elif len(self.sequence_buffer) > 1 and self.sequence_buffer[-1] != self.sequence_buffer[-2]:
+                            detected_text += " " + smooth_gesture
+                        
+                        # Update the last recognition time
+                        last_recognition_time = current_time
             
-            # --- Drawing Annotations --- 
-            annotated_image = image_bgr.copy() # Draw on a copy
-            
-            # Draw Pose landmarks
+            # Draw Pose landmarks if present
             if pose_results and pose_results.pose_landmarks:
                 self.mp_drawing.draw_landmarks(
                     annotated_image,
@@ -398,62 +498,89 @@ class RealtimeGestureRecognizer:
                     landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style()
                 )
             
-            # Draw Hand landmarks
-            if hand_results and hand_results.multi_hand_landmarks:
-                for hand_landmarks in hand_results.multi_hand_landmarks:
-                    self.mp_drawing.draw_landmarks(
-                        annotated_image,
-                        hand_landmarks,
-                        self.mp_hands.HAND_CONNECTIONS,
-                        self.mp_drawing_styles.get_default_hand_landmarks_style(),
-                        self.mp_drawing_styles.get_default_hand_connections_style()
-                    )
+            # Place the annotated image on the UI canvas
+            ui_canvas[0:frame_height, 0:frame_width] = annotated_image
             
-            # Get sequence text
-            sequence_text = self.get_sequence_text()
-            
-            # --- Add Text Overlays --- 
-            # Prediction Text
-            cv2.putText(annotated_image, prediction_text, (10, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
-            # Confidence Text
-            cv2.putText(annotated_image, confidence_text, (10, 60), 
+            # Add text overlay for current detection
+            cv2.putText(ui_canvas, prediction_text, (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
             
-            # Sequence Text
-            if sequence_text:
-                text_size = cv2.getTextSize(sequence_text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)[0]
-                rect_height = text_size[1] + 10
-                cv2.rectangle(annotated_image, (10, annotated_image.shape[0] - rect_height - 10), 
-                             (10 + text_size[0] + 10, annotated_image.shape[0] - 10), 
-                             (0, 0, 0, 180), -1) # Semi-transparent black background
-                cv2.putText(annotated_image, sequence_text, (15, annotated_image.shape[0] - 20), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+            if confidence_text:
+                cv2.putText(ui_canvas, confidence_text, (10, 60), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
             
-            # --- FPS Calculation (Optional) ---
-            frame_count += 1
-            if frame_count >= 10:
-                end_time = time.time()
-                fps = frame_count / (end_time - start_time)
-                # print(f"FPS: {fps:.2f}") # Print FPS to console
-                # Reset for next batch
-                frame_count = 0
-                start_time = time.time()
-                # Draw FPS on image
-                cv2.putText(annotated_image, f"FPS: {fps:.1f}", (annotated_image.shape[1] - 120, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2, cv2.LINE_AA)
+            # Draw text box area (labeled "H" in the image)
+            text_box_y = frame_height + 10
+            text_box_height = 80
+            cv2.rectangle(ui_canvas, (10, text_box_y), (window_width - 10, text_box_y + text_box_height), (200, 200, 200), -1)  # Gray background
+            cv2.rectangle(ui_canvas, (10, text_box_y), (window_width - 10, text_box_y + text_box_height), (0, 0, 0), 1)  # Black border
             
-            # Display the image
-            cv2.imshow('Sign Language Recognition', annotated_image)
+            # Add 'H' label to the left of the text box
+            cv2.putText(ui_canvas, "", (20, text_box_y + 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2, cv2.LINE_AA)
+            
+            # Display the detected text in the text box
+            # Split text into lines to fit in the box
+            if detected_text:
+                text_x, text_y = 50, text_box_y + 20
+                line_height = 20
+                
+                # Simple text wrapping
+                words = detected_text.split()
+                lines = []
+                current_line = ""
+                
+                for word in words:
+                    test_line = current_line + " " + word if current_line else word
+                    if cv2.getTextSize(test_line, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0][0] < window_width - 100:
+                        current_line = test_line
+                    else:
+                        lines.append(current_line)
+                        current_line = word
+                
+                if current_line:
+                    lines.append(current_line)
+                
+                # Display text (showing last 2 lines if there are more)
+                display_lines = lines[-2:] if len(lines) > 2 else lines
+                for i, line in enumerate(display_lines):
+                    cv2.putText(ui_canvas, line, (text_x, text_y + i * line_height), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+            
+            # Draw buttons
+            button_y = window_height - 80
+            button_height = 60
+            
+            # Clear All button
+            cv2.rectangle(ui_canvas, (50, button_y), (220, button_y + button_height), (200, 230, 230), -1)  # Light beige/yellow in BGR
+            cv2.rectangle(ui_canvas, (50, button_y), (220, button_y + button_height), (0, 0, 0), 1)  # Black border
+            cv2.putText(ui_canvas, "Clear All", (90, button_y + 35), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
+            
+            # Save to a Text File button
+            cv2.rectangle(ui_canvas, (240, button_y), (440, button_y + button_height), (0, 150, 0), -1)  # Green in BGR
+            cv2.rectangle(ui_canvas, (240, button_y), (440, button_y + button_height), (0, 0, 0), 1)  # Black border
+            cv2.putText(ui_canvas, "Save", (260, button_y + 35), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
+            
+            # Quit button
+            cv2.rectangle(ui_canvas, (460, button_y), (600, button_y + button_height), (0, 0, 255), -1)  # Red in BGR
+            cv2.rectangle(ui_canvas, (460, button_y), (600, button_y + button_height), (0, 0, 0), 1)  # Black border
+            cv2.putText(ui_canvas, "Quit", (505, button_y + 35), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)  # White text
+            
+            # Display the UI
+            cv2.imshow('Sign Language Recognition', ui_canvas)
             
             # Handle key presses
             key = cv2.waitKey(5) & 0xFF
             if key == ord('q'):
                 break
             elif key == ord('c'):
-                # Clear the sequence buffer
+                # Clear the sequence buffer and detected text
                 self.sequence_buffer = []
-                self.history_buffer.clear() # Also clear history buffer
+                self.history_buffer.clear()
+                detected_text = ""
                 print("Sequence and history cleared")
         
         # Clean up
@@ -474,7 +601,7 @@ if __name__ == "__main__":
             min_tracking_confidence=0.5,
             min_pose_detection_confidence=0.5,
             min_pose_tracking_confidence=0.5,
-            recognition_threshold=0.6, # Lower threshold might be needed initially
+            recognition_threshold=0.9, # Higher threshold for better accuracy
             smoothing_window=5 # Smaller window might be more responsive
         )
         recognizer.run(camera_id=0, flip_image=True)
