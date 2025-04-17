@@ -217,5 +217,4 @@ This project is open source and available under the MIT License.
 ## Acknowledgments
 
 - MediaPipe for the hand tracking technology
-- TensorFlow for the deep learning framework #   S i g n _ L a n g u a g e _ D e t e c t i o n _ S y s t e m  
- 
+- TensorFlow for the deep learning framework #
